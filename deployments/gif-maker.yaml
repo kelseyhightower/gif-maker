@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: gif-maker
-          image: "gcr.io/hightowerlabs/gif-maker" 
+          image: "gcr.io/hightowerlabs/gif-maker:911e54f5-2a9b-4420-8f13-55e3cfc1c2fd" 
           imagePullPolicy: Always
           env:
             - name: BUCKET
@@ -39,10 +39,10 @@ spec:
           resources:
             limits:
               cpu: 2000m
-              memory: 100m
+              memory: 100M
             requests:
               cpu: 500m
-              memory: 50m
+              memory: 50M
           volumeMounts:
             - name: "service-account"
               mountPath: "/var/run/secret/cloud.google.com"

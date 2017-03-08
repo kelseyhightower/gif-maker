@@ -29,6 +29,7 @@ import (
 )
 
 var (
+	bucket        string
 	database      string
 	httpAddr      string
 	hostname      string
@@ -41,6 +42,7 @@ var (
 var serviceAccountFile = "/var/run/secret/cloud.google.com/service-account.json"
 
 func main() {
+	flag.StringVar(&bucket, "bucket", "", "The Google Cloud Storage bucket to storage images.")
 	flag.StringVar(&database, "database", "", "The Spanner database to store events.")
 	flag.StringVar(&httpAddr, "http", "0.0.0.0:80", "The HTTP listen address.")
 	flag.StringVar(&projectID, "project-id", "", "The Google Cloud project id.")

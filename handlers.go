@@ -27,29 +27,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var html = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Kubernetes Pod</title>
-</head>
-<body>
-  <h3>Pod Info</h3>
-  <ul>
-    <li>Hostname: %s</li>
-  </ul>
-  <h3>Certificate Details</h3>
-  <ul>
-    <li>Issuer: %s</li>
-    <li>Serial: %s</li>
-    <li>NotBefore: %s</li>
-    <li>NotAfter: %s</li>
-  </ul>
-</body>
-</html>
-`
-
 type Event struct {
 	ID        string
 	Message   string
@@ -120,9 +97,10 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		animatedGIF.Delay = append(animatedGIF.Delay, 0)
 	}
 
-	storageSpan := span.NewChild("cloud-storage")
+	storageSpan := span.NewChild("upload-to-cloud-storage")
 	storageCtx := context.Background()
-	result := storageClient.Bucket("cloud-native-app").Object("animated.gif").NewWriter(storageCtx)
+
+	result := storageClient.Bucket(bucket).Object("animated.gif").NewWriter(storageCtx)
 	result.ContentType = "image/gif"
 	result.ACL = []storage.ACLRule{{storage.AllUsers, storage.RoleReader}}
 
@@ -146,7 +124,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 
-	databaseSpan := span.NewChild("spanner")
+	databaseSpan := span.NewChild("log-event-to-spanner")
 	ctx := context.Background()
 	_, err = spannerClient.Apply(ctx, []*spanner.Mutation{m})
 	if err != nil {
