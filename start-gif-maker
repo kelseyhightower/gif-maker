@@ -1,0 +1,4 @@
+gif-maker -http ":8080" \
+  -bucket gif-maker-dev \
+  -database "projects/hightowerlabs/instances/gif-maker/databases/dev" \
+  -project-id hightowerlabs
