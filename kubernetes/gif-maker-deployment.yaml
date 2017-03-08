@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: gif-maker
+  name: gif-maker
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gif-maker
+      name: gif-maker
+    spec:
+      containers:
+        - name: gif-maker
+          image: "gcr.io/hightowerlabs/gif-maker:0.0.1" 
+          imagePullPolicy: Always
+          env:
+            - name: BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: gif-maker
+                  key: bucket
+            - name: DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: gif-maker
+                  key: database
+            - name: PROJECT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: gif-maker
+                  key: project-id
+          args:
+            - "-bucket=$(BUCKET)"
+            - "-database=$(DATABASE)"
+            - "-project-id=$(PROJECT_ID)"
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 100M
+            requests:
+              cpu: 500m
+              memory: 50M
+          volumeMounts:
+            - name: "service-account"
+              mountPath: "/var/run/secret/cloud.google.com"
+            - name: "certs"
+              mountPath: "/etc/ssl/certs"
+      volumes:
+        - name: "service-account"
+          secret:
+            secretName: gif-maker
+        - name: "certs"
+          hostPath:
+            path: "/etc/ssl/certs"
