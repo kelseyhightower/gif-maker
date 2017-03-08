@@ -76,6 +76,7 @@ func main() {
 
 	http.HandleFunc("/", httpHandler)
 	http.HandleFunc("/healthz", healthHandler)
+	http.HandleFunc("/readiness", healthHandler)
 
 	server := http.Server{
 		Addr: httpAddr,
