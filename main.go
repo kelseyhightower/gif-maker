@@ -33,8 +33,6 @@ var (
 	httpAddr      string
 	hostname      string
 	projectID     string
-	tlsCert       string
-	tlsKey        string
 	traceClient   *trace.Client
 	spannerClient *spanner.Client
 	storageClient *storage.Client
@@ -43,21 +41,14 @@ var (
 var serviceAccountFile = "/var/run/secret/cloud.google.com/service-account.json"
 
 func main() {
-	flag.StringVar(&database, "database", "", "The Spanner database.")
-	flag.StringVar(&httpAddr, "http", ":443", "HTTP Listen address.")
-	flag.StringVar(&projectID, "project-id", "", "Google Cloud project id.")
-	flag.StringVar(&tlsCert, "tls-cert", "/etc/tls/server.pem", "TLS certificate path")
-	flag.StringVar(&tlsKey, "tls-key", "/etc/tls/server.key", "TLS private key path")
+	flag.StringVar(&database, "database", "", "The Spanner database to store events.")
+	flag.StringVar(&httpAddr, "http", "0.0.0.0:80", "The HTTP listen address.")
+	flag.StringVar(&projectID, "project-id", "", "The Google Cloud project id.")
 	flag.Parse()
 
-	log.Println("Initializing application...")
+	log.Println("Starting gif-maker service...")
 
 	var err error
-	hostname, err = os.Hostname()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	ctx := context.Background()
 
 	traceClient, err = trace.NewClient(ctx, projectID,
@@ -87,27 +78,21 @@ func main() {
 		Addr: httpAddr,
 	}
 
-	errChan := make(chan error, 1)
 	go func() {
-		errChan <- server.ListenAndServeTLS(tlsCert, tlsKey)
+		log.Fatal(server.ListenAndServe())
 	}()
 
-	log.Printf("HTTPS listener on %s...", httpAddr)
+	log.Printf("HTTP listener on %s...", httpAddr)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownCtx, _ := context.WithTimeout(context.Background(), 10000000*time.Second)
+	s := <-signalChan
+	log.Println(fmt.Sprintf("Captured %v. Exiting...", s))
+	shutdownCtx, _ := context.WithTimeout(context.Background(), 120*time.Second)
+	server.Shutdown(shutdownCtx)
 
-	for {
-		select {
-		case s := <-signalChan:
-			log.Println(fmt.Sprintf("Captured %v. Exiting...", s))
-			server.Shutdown(shutdownCtx)
-		case err := <-errChan:
-			log.Fatal(err)
-		case <-shutdownCtx.Done():
-			log.Println(shutdownCtx.Err())
-		}
-	}
+	<-shutdownCtx.Done()
+	log.Println(shutdownCtx.Err())
+	os.Exit(0)
 }

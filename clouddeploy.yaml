@@ -1,0 +1,8 @@
+steps:
+  - name: gcr.io/cloud-builders/gsutil
+    args: ["cp", "gs://${PROJECT_ID}/production-kubeconfig", "/workspace/kubeconfig"]
+ 
+  - name: "gcr.io/google_containers/hyperkube:v1.5.3"
+    env: ["KUBECONFIG=/workspace/kubeconfig"]
+    entrypoint: "/hyperkube"
+    args: ["kubectl", "apply", "-f", "/workspace/deployments/gif-maker.yaml"]
