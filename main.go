@@ -75,6 +75,7 @@ func main() {
 		option.WithServiceAccountFile(serviceAccountFile))
 
 	http.HandleFunc("/", httpHandler)
+	http.HandleFunc("/healthz", healthHandler)
 
 	server := http.Server{
 		Addr: httpAddr,

@@ -33,6 +33,10 @@ type Event struct {
 	Timestamp time.Time
 }
 
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	return
+}
+
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	span := traceClient.SpanFromRequest(r)
 	defer span.Finish()
@@ -100,7 +104,11 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	storageSpan := span.NewChild("upload-to-cloud-storage")
 	storageCtx := context.Background()
 
-	result := storageClient.Bucket(bucket).Object("animated.gif").NewWriter(storageCtx)
+	imageID := uuid.New().String()
+	imageName := fmt.Sprintf("%s.gif", imageID)
+	imageURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, imageName)
+
+	result := storageClient.Bucket(bucket).Object(imageName).NewWriter(storageCtx)
 	result.ContentType = "image/gif"
 	result.ACL = []storage.ACLRule{{storage.AllUsers, storage.RoleReader}}
 
@@ -115,7 +123,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	// Log an event.
 	event := Event{
 		ID:        uuid.New().String(),
-		Message:   fmt.Sprintf("Animated GIF created.", result.Attrs().MediaLink),
+		Message:   fmt.Sprintf("Animated GIF created: %s", imageURL),
 		Timestamp: time.Now(),
 	}
 
@@ -132,5 +140,5 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	databaseSpan.Finish()
 
-	fmt.Fprintf(w, result.Attrs().MediaLink)
+	fmt.Fprintf(w, imageURL + "\n")
 }
