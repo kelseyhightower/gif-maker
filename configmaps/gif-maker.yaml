@@ -1,9 +1,0 @@
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: "gif-maker"
-  namespace: default
-data:
-  bucket: "gif-maker"
-  database: "projects/hightowerlabs/instances/gif-maker/databases/production"
-  project-id: "hightowerlabs"
