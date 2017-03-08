@@ -66,6 +66,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	p, err := trace.NewLimitedSampler(1, 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+	traceClient.SetSamplingPolicy(p)
+
 	storageClient, err = storage.NewClient(ctx,
 		option.WithServiceAccountFile(serviceAccountFile))
 	if err != nil {
@@ -77,7 +83,9 @@ func main() {
 
 	http.HandleFunc("/", httpHandler)
 
-	server := http.Server{}
+	server := http.Server{
+		Addr: httpAddr,
+	}
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -89,7 +97,7 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownCtx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, _ := context.WithTimeout(context.Background(), 10000000*time.Second)
 
 	for {
 		select {

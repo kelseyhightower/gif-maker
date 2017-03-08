@@ -12,15 +12,18 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"image"
 	"image/gif"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 )
 
@@ -56,38 +59,100 @@ type Event struct {
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	span := traceClient.SpanFromRequest(r)
 	defer span.Finish()
+	err := r.ParseMultipartForm(100000)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	gifs := []gif.GIF{}
+	gifs := make([]string, 0)
+
+	form := r.MultipartForm
+	images := form.File["images"]
+
+	for i, _ := range images {
+		f, err := images[i].Open()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+
+		img, _, err := image.Decode(f)
+		if err != nil {
+			log.Println("error decoding input image:", err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		tmpfile, err := ioutil.TempFile("", "gif")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer tmpfile.Close()
+
+		err = gif.Encode(tmpfile, img, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		gifs = append(gifs, tmpfile.Name())
+	}
 
 	animatedGIF := &gif.GIF{}
 	for _, g := range gifs {
-		animatedGIF.Image = append(animatedGIF.Image, g.Image[0])
+		f, err := os.Open(g)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+
+		img, err := gif.Decode(f)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		animatedGIF.Image = append(animatedGIF.Image, img.(*image.Paletted))
 		animatedGIF.Delay = append(animatedGIF.Delay, 0)
 	}
 
-	var b bytes.Buffer
-	err := gif.EncodeAll(&b, animatedGIF)
+	storageSpan := span.NewChild("cloud-storage")
+	storageCtx := context.Background()
+	result := storageClient.Bucket("cloud-native-app").Object("animated.gif").NewWriter(storageCtx)
+	result.ContentType = "image/gif"
+	result.ACL = []storage.ACLRule{{storage.AllUsers, storage.RoleReader}}
+
+	err = gif.EncodeAll(result, animatedGIF)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+	result.Close()
+	storageSpan.Finish()
 
 	// Log an event.
 	event := Event{
 		ID:        uuid.New().String(),
-		Message:   "Animated GIF created.",
+		Message:   fmt.Sprintf("Animated GIF created.", result.Attrs().MediaLink),
 		Timestamp: time.Now(),
 	}
 
-	m, err := spanner.InsertStruct("Event", event)
+	m, err := spanner.InsertStruct("Events", event)
 	if err != nil {
 		log.Println(err)
 	}
 
+	databaseSpan := span.NewChild("spanner")
 	ctx := context.Background()
 	_, err = spannerClient.Apply(ctx, []*spanner.Mutation{m})
 	if err != nil {
 		log.Println(err)
 	}
+	databaseSpan.Finish()
 
-	fmt.Fprintf(w, html, hostname)
+	fmt.Fprintf(w, result.Attrs().MediaLink)
 }
